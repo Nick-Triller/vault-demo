@@ -1,0 +1,84 @@
+version: '3.1'
+services:
+
+  vault:
+    image: 'library/vault:1.3.0'
+    restart: 'unless-stopped'
+    ports: 
+    - '8200:8200'
+    volumes:
+    - './files/vault.hcl:/vault/config/vault.hcl:ro'
+    cap_add:
+      - 'IPC_LOCK'
+    command: ["server", "-log-level=debug"]
+
+  postgres:
+    image: 'library/postgres:12.0-alpine'
+    restart: 'unless-stopped'
+    ports:
+    - '5432:5432'
+    environment:
+    - 'POSTGRES_PASSWORD=SDUltVgaf110T0wnQOku'
+    - 'POSTGRES_USER=vault'
+
+  #
+  # LOGGER
+  #
+  agent-logger:
+    image: 'library/vault:1.3.0'
+    restart: 'unless-stopped'
+    volumes:
+    - './files/agent.hcl:/conf/agent.hcl:ro'
+    - './loggerapp/vault:/conf/vault/:ro'
+    - './volumes/logger-agent/:/out/'
+    command: ["agent", "-config=/conf/agent.hcl"]
+
+  template-logger:
+    image: 'hashicorp/consul-template:0.23.0-alpine'
+    restart: 'unless-stopped'
+    volumes:
+    - './files/template-conf.hcl:/conf/conf.hcl:ro'
+    - './files/logger_creds.ctmpl:/conf/template.ctmpl:ro'
+    - './volumes/logger-agent/:/conf/agent/:ro'
+    - './volumes/logger-template/:/out/'
+    command: ["consul-template", "-config=/conf/conf.hcl"]
+
+  app-logger:
+    restart: 'unless-stopped'
+    build:
+      dockerfile: Dockerfile
+      context: ./loggerapp
+    volumes:
+    - './volumes/logger-template/:/app/creds:ro'
+
+  #
+  # SERVER
+  #
+  agent-server:
+    image: 'library/vault:1.3.0'
+    restart: 'unless-stopped'
+    volumes:
+    - './files/agent.hcl:/conf/agent.hcl:ro'
+    - './readerapp/vault/:/conf/vault/:ro'
+    - './volumes/reader-agent/:/out/'
+    command: ["agent", "-config=/conf/agent.hcl"]
+
+  template-server:
+    image: 'hashicorp/consul-template:0.23.0-alpine'
+    restart: 'unless-stopped'
+    volumes:
+    - './files/template-conf.hcl:/conf/conf.hcl:ro'
+    - './files/reader_creds.ctmpl:/conf/template.ctmpl:ro'
+    - './volumes/reader-agent/:/conf/agent/:ro'
+    - './volumes/reader-template/:/out/'
+    command: ["consul-template", "-config=/conf/conf.hcl"]
+
+  app-server:
+    restart: 'unless-stopped'
+    build:
+      dockerfile: Dockerfile
+      context: ./readerapp
+    ports:
+    - '8000:8000'
+    volumes:
+    - './volumes/reader-template:/app/creds:ro'

@@ -1,0 +1,5 @@
+{{- with secret "database/creds/logger" -}}
+[database]
+username={{ .Data.username }}
+password={{ .Data.password }}
+{{- end }}
